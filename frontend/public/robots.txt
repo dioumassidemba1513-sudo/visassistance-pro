@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lucent-pavlova-41bc41.netlify.app/sitemap.xml
