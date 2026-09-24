@@ -35,10 +35,12 @@ export default function App() {
     let cancelled = false;
     const { ref, telephone, token } = JSON.parse(pendingRaw);
 
-    // Le webhook PayDunya peut arriver quelques secondes après le retour du
-    // client — on retente quelques fois avant d'abandonner silencieusement.
-    // À partir du 2e essai, on interroge aussi PayDunya directement en secours,
-    // au cas où le webhook n'arriverait pas du tout.
+    // Le webhook PayDunya peut arriver bien après le retour du client, surtout
+    // si le serveur Render (plan gratuit) s'était mis en veille — son réveil
+    // peut prendre jusqu'à 50-60 secondes. On retente pendant ~65 secondes
+    // avant d'abandonner, et on interroge aussi PayDunya en secours à partir
+    // du 2e essai au cas où le webhook n'arriverait jamais.
+    const MAX_ATTEMPTS = 20; // ~20 x 3s ≈ 60s, au-delà du pire cas de réveil Render
     const attempt = async (n) => {
       try {
         const found = await apiGetDossier(ref, telephone);
@@ -62,16 +64,27 @@ export default function App() {
             return;
           }
         }
+        // Pas encore payé confirmé, mais on garde le dossier sous le coude pour
+        // ne pas laisser l'utilisateur sur un écran vide si on abandonne.
+        if (found) lastKnownDossier = found;
       } catch {
         // on retente quand même, le webhook peut juste être en retard
       }
-      if (n < 4) {
-        setTimeout(() => attempt(n + 1), 2000);
+      if (n < MAX_ATTEMPTS) {
+        setTimeout(() => attempt(n + 1), 3000);
       } else {
         localStorage.removeItem("vp_pending_payment");
         setCheckingReturn(false);
+        // Le paiement n'est pas confirmé après ~1 minute d'attente : on amène
+        // quand même le client sur son dossier (avec un bouton "vérifier"
+        // manuel) plutôt que de le laisser sans aucun repère sur l'accueil.
+        if (lastKnownDossier) {
+          setAutoPaid({ dossier: lastKnownDossier, unconfirmed: true });
+          setRole("client");
+        }
       }
     };
+    let lastKnownDossier = null;
     attempt(0);
 
     return () => {
@@ -83,8 +96,8 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ background: C.paper }}>
         <Loader2 size={26} className="animate-spin" color={C.gradB} />
-        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: C.slate }}>
-          Vérification de votre paiement…
+        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: C.slate, textAlign: "center", maxWidth: 280 }}>
+          Vérification de votre paiement… cela peut prendre jusqu'à une minute.
         </p>
       </div>
     );
@@ -116,7 +129,8 @@ export default function App() {
           }}
           prefill={prefill}
           initialDossier={autoPaid?.dossier}
-          initialShowPaidModal={!!autoPaid}
+          initialShowPaidModal={!!autoPaid && !autoPaid.unconfirmed}
+          initialUnconfirmedPayment={!!autoPaid?.unconfirmed}
         />
       )}
       {role === "agence" && !agencePin && (

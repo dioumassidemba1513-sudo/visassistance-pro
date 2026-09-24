@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   inputStyle,
+  API_BASE_URL,
   C,
   COUNTRIES,
   Checklist,
@@ -36,7 +37,7 @@ import {
   apiReviewExists,
 } from "../shared";
 
-export function ClientPortal({ onBack, prefill, initialDossier, initialShowPaidModal }) {
+export function ClientPortal({ onBack, prefill, initialDossier, initialShowPaidModal, initialUnconfirmedPayment }) {
   const [mode, setMode] = useState(initialDossier ? "dossier" : prefill ? "onboarding" : "choice"); // choice | lookup | onboarding | dossier
   const [dossier, setDossier] = useState(initialDossier || null);
   const [loading, setLoading] = useState(false);
@@ -61,6 +62,7 @@ export function ClientPortal({ onBack, prefill, initialDossier, initialShowPaidM
   const [reviewHoneypot, setReviewHoneypot] = useState("");
   const [reviewSent, setReviewSent] = useState(false);
   const [showPaidModal, setShowPaidModal] = useState(!!initialShowPaidModal);
+  const [unconfirmedBanner, setUnconfirmedBanner] = useState(!!initialUnconfirmedPayment);
 
   useEffect(() => {
     if (dossier?.paid) {
@@ -419,6 +421,48 @@ export function ClientPortal({ onBack, prefill, initialDossier, initialShowPaidM
 
         {mode === "dossier" && dossier && (
           <div className="flex flex-col gap-6">
+            {unconfirmedBanner && (
+              <div
+                className="flex flex-col gap-2 p-4"
+                style={{ background: "#FFF8E8", border: "1px solid #F0D999", borderRadius: 12 }}
+              >
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#7A5B00", fontWeight: 600 }}>
+                  Vérification du paiement en cours
+                </p>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#7A5B00" }}>
+                  Votre paiement a peut-être été accepté, mais la confirmation prend plus de temps que prévu.
+                  Réessayez dans une minute avec le bouton ci-dessous, ou gardez votre référence {dossier.ref}.
+                </p>
+                <button
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const refreshed = await apiGetDossier(dossier.ref, dossier.telephone);
+                      if (refreshed) setDossier(refreshed);
+                      if (refreshed?.paid) {
+                        setUnconfirmedBanner(false);
+                        setShowPaidModal(true);
+                      }
+                    } catch {
+                      // on laisse la bannière, l'utilisateur peut réessayer
+                    }
+                    setLoading(false);
+                  }}
+                  disabled={loading}
+                  className="self-start px-3 py-1.5"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#7A5B00",
+                    background: "#fff",
+                    border: "1px solid #F0D999",
+                  }}
+                >
+                  {loading ? "Vérification…" : "Vérifier à nouveau"}
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-4">
               <Seal percent={progressOf(dossier)} />
               <div className="flex-1">
@@ -469,7 +513,16 @@ export function ClientPortal({ onBack, prefill, initialDossier, initialShowPaidM
 
             {!dossier.paid && (
               <div className="flex flex-col gap-2">
-                <PrimaryButton onClick={() => setMode("paiement")}>Payer maintenant</PrimaryButton>
+                <PrimaryButton
+                  onClick={() => {
+                    // Réveil discret de Render (plan gratuit) le plus tôt possible,
+                    // pour que le webhook de retour de paiement le trouve déjà actif.
+                    fetch(API_BASE_URL).catch(() => {});
+                    setMode("paiement");
+                  }}
+                >
+                  Payer maintenant
+                </PrimaryButton>
                 <button
                   onClick={() => setMode("verification")}
                   style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: C.slate, background: "transparent", border: "none", cursor: "pointer" }}
