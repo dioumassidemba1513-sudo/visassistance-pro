@@ -448,6 +448,10 @@ app.post("/api/checkout", async (req, res) => {
   const returnUrlWithToken = returnUrl
     ? `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}token=1`
     : "";
+  const returnUrl = process.env.RETURN_URL || "";
+  const returnUrlWithToken = returnUrl
+    ? `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}token=1`
+    : "";
 
   const payload = {
     invoice: {
