@@ -444,11 +444,6 @@ app.post("/api/checkout", async (req, res) => {
     return res.status(400).json({ error: "Offre inconnue." });
   }
 
-  const returnUrl = process.env.RETURN_URL || "";
-  const returnUrlWithToken = returnUrl
-    ? `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}token=1`
-    : "";
-
   const payload = {
     invoice: {
       total_amount: offre.amount,
@@ -460,7 +455,7 @@ app.post("/api/checkout", async (req, res) => {
     custom_data: { dossier_ref: ref, tier },
     actions: {
       cancel_url: process.env.CANCEL_URL || "",
-      return_url: returnUrlWithToken,
+      return_url: process.env.RETURN_URL || "",
       callback_url: process.env.CALLBACK_URL || "",
     },
   };
