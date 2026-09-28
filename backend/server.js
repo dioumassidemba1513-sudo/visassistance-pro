@@ -444,11 +444,6 @@ app.post("/api/checkout", async (req, res) => {
     return res.status(400).json({ error: "Offre inconnue." });
   }
 
-  const offre = resolveTier(tier, dossier.pays);
-  if (!offre) {
-    return res.status(400).json({ error: "Offre inconnue." });
-  }
-
   const returnUrl = process.env.RETURN_URL || "";
   const returnUrlWithToken = returnUrl
     ? `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}token=1`
